@@ -10,7 +10,7 @@
 #include <iostream>
 
 Load< Sound::Sample > noise(LoadTagDefault, []() -> Sound::Sample const * {
-	return new Sound::Sample(data_path("cold-dunes.opus"));
+	return new Sound::Sample(data_path("bgm.wav"));
 });
 
 Load< SpriteAtlas > trade_font_atlas(LoadTagDefault, []() -> SpriteAtlas const * {
@@ -52,24 +52,75 @@ ObserveMode::~ObserveMode() {
 	noise_loop->stop();
 }
 
+void ObserveMode::move_left() {
+	auto ci = scene->cameras.begin();
+	while (ci != scene->cameras.end() && &*ci != current_camera) ++ci;
+	if (ci == scene->cameras.begin()) ci = scene->cameras.end();
+	--ci;
+	current_camera = &*ci;	
+}
+
+void ObserveMode::move_right() {
+	auto ci = scene->cameras.begin();
+	while (ci != scene->cameras.end() && &*ci != current_camera) ++ci;
+	if (ci != scene->cameras.end()) ++ci;
+	if (ci == scene->cameras.end()) ci = scene->cameras.begin();
+	current_camera = &*ci;
+}
+
+void ObserveMode::move_to(int target) {
+	while (mode > target) {
+		mode--;
+		move_left();
+	}
+	while (mode < target) {
+		mode++;
+		move_right();
+	}
+	
+}
+
 bool ObserveMode::handle_event(SDL_Event const &evt, glm::uvec2 const &window_size) {
 	if (evt.type == SDL_KEYDOWN) {
-		if (evt.key.keysym.sym == SDLK_LEFT) {
-			auto ci = scene->cameras.begin();
-			while (ci != scene->cameras.end() && &*ci != current_camera) ++ci;
-			if (ci == scene->cameras.begin()) ci = scene->cameras.end();
-			--ci;
-			current_camera = &*ci;
-			return true;
+		help_text = "--- SWITCH CAMERAS WITH LEFT/RIGHT/UP/DOWN ---";
+		if (evt.key.keysym.sym == SDLK_DOWN) {
+			move_to(0);
+		} else if (evt.key.keysym.sym == SDLK_UP) {
+			if (mode == 0 || mode == 4) {
+				help_text = "--- Illegal Input! ---";
+			} else {
+				if (mode == 1) {
+					help_text = "--- Dead End! You can Press DOWN to restart ---";
+				} else if (mode == 2) {
+					move_to(3);
+				} else {
+					move_to(4);
+				}
+			}
+		} else if (evt.key.keysym.sym == SDLK_LEFT) {
+			if (mode == 0) {
+				move_to(2);
+			} else if (mode == 1) {
+				move_to(0);
+			} else if (mode == 2) {
+				help_text = "--- Dead End! You can Press DOWN to restart ---";
+			} else if (mode == 4) {
+				move_to(3);
+			} else {
+				move_to(4);
+			}
 		} else if (evt.key.keysym.sym == SDLK_RIGHT) {
-			auto ci = scene->cameras.begin();
-			while (ci != scene->cameras.end() && &*ci != current_camera) ++ci;
-			if (ci != scene->cameras.end()) ++ci;
-			if (ci == scene->cameras.end()) ci = scene->cameras.begin();
-			current_camera = &*ci;
-
-			return true;
-		}
+			if (mode == 0) {
+				move_to(1);
+			} else if (mode == 1 || mode == 3) {
+				help_text = "--- Dead End! You can Press DOWN to restart ---";
+			} else if (mode == 2) {
+				move_to(0);
+			} else {
+				help_text = "--- congratulation! You get out of this place!! ---";
+			}
+		} else  
+		return true;
 	}
 	
 	return false;
@@ -94,6 +145,10 @@ void ObserveMode::update(float elapsed) {
 }
 
 void ObserveMode::draw(glm::uvec2 const &drawable_size) {
+	if (mode == -1) {
+		mode = 1;
+		move_to(0);
+	}
 	//--- actual drawing ---
 	glClearColor(0.85f, 0.85f, 0.90f, 0.0f);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -112,7 +167,7 @@ void ObserveMode::draw(glm::uvec2 const &drawable_size) {
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 		DrawSprites draw(*trade_font_atlas, glm::vec2(0,0), glm::vec2(320, 200), drawable_size, DrawSprites::AlignPixelPerfect);
 
-		std::string help_text = "--- SWITCH CAMERAS WITH LEFT/RIGHT ---";
+
 		glm::vec2 min, max;
 		draw.get_text_extents(help_text, glm::vec2(0.0f, 0.0f), 1.0f, &min, &max);
 		float x = std::round(160.0f - (0.5f * (max.x + min.x)));
